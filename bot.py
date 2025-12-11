@@ -13,7 +13,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 import yt_dlp
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ChatAction
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.constants import ChatAction
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 import config
