@@ -1,4 +1,21 @@
+# المكتبات الأساسية للبوت
 python-telegram-bot==20.3
+
+# تحميل الفيديوهات من YouTube والمنصات الأخرى
 yt-dlp
+
+# للتعامل مع طلبات HTTP
 requests
+httpx~=0.24.0
+httpcore<0.18.0,>=0.15.0
+anyio<5.0,>=3.0
+sniffio
+h11<0.15,>=0.13
+idna
+charset_normalizer<4,>=2
+urllib3<3,>=1.21.1
+certifi
+
+# لتشغيل Webhook مع asyncio
+aiohttp
 nest_asyncio
