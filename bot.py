@@ -23,33 +23,35 @@ from telegram.ext import (
 import nest_asyncio
 from aiohttp import web
 
-# ---------- إعدادات ----------
+# ================== إعدادات ==================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # مثال: https://xxxx.onrender.com
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # مثال: https://xxxx.onrender.com/
 
 if not BOT_TOKEN or not WEBHOOK_URL:
-    raise RuntimeError("BOT_TOKEN أو WEBHOOK_URL غير موجود")
+    raise RuntimeError("❌ BOT_TOKEN أو WEBHOOK_URL غير موجود")
 
-BASE_TMP = Path(tempfile.gettempdir()) / "tg_bot"
+BASE_TMP = Path(tempfile.gettempdir()) / "tg_webhook_bot"
 BASE_TMP.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO)
 
-# ---------- أدوات ----------
+# ================== أدوات ==================
 def is_url(text: str) -> bool:
     return re.match(r"^https?://", text) is not None
 
 
 def yt_search_sync(query: str):
+    """بحث في يوتيوب باستخدام cookies"""
     opts = {
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch1",
         "skip_download": True,
+        "cookiefile": "cookies.txt",
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(query, download=False)
-        if "entries" in info and info["entries"]:
+        if info and "entries" in info and info["entries"]:
             return info["entries"][0]["webpage_url"]
     return None
 
@@ -61,6 +63,7 @@ async def yt_search(query: str):
 
 async def download_media(url: str, mode: str):
     tmp = Path(tempfile.mkdtemp(dir=BASE_TMP))
+
     ydl_opts = {
         "outtmpl": str(tmp / "%(id)s.%(ext)s"),
         "noplaylist": True,
@@ -89,10 +92,10 @@ async def download_media(url: str, mode: str):
     return files[0], info
 
 
-# ---------- Handlers ----------
+# ================== Handlers ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🎧 أرسل رابط أو اسم أغنية / زامل\n"
+        "🎧 أرسل رابط يوتيوب أو اسم أغنية / زامل\n"
         "وسيظهر لك خيار التحميل"
     )
 
@@ -101,7 +104,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
 
     if not is_url(text):
-        await update.message.reply_text("🔍 جاري البحث...")
+        await update.message.reply_text("🔍 جاري البحث في يوتيوب...")
         url = await yt_search(text)
         if not url:
             await update.message.reply_text("❌ لا توجد نتائج")
@@ -111,13 +114,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["url"] = url
 
-    kb = [
-        [InlineKeyboardButton("🎬 فيديو", callback_data="video")],
-        [InlineKeyboardButton("🎧 صوت MP3", callback_data="audio")],
+    keyboard = [
+        [InlineKeyboardButton("🎬 تحميل فيديو", callback_data="video")],
+        [InlineKeyboardButton("🎧 تحميل صوت MP3", callback_data="audio")],
     ]
+
     await update.message.reply_text(
         "اختر نوع التحميل:",
-        reply_markup=InlineKeyboardMarkup(kb)
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
@@ -127,10 +131,10 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = context.user_data.get("url")
     if not url:
-        await q.edit_message_text("❌ أعد إرسال الرابط")
+        await q.edit_message_text("❌ أعد إرسال الطلب")
         return
 
-    await q.edit_message_text("⏳ جاري التحميل...")
+    await q.edit_message_text("⏳ جاري التحميل والمعالجة...")
 
     try:
         file, info = await download_media(url, q.data)
@@ -148,7 +152,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 title=info.get("title", "")
             )
 
-        await q.edit_message_text("✅ تم الإرسال")
+        await q.edit_message_text("✅ تم الإرسال بنجاح")
 
     except Exception as e:
         await q.edit_message_text(f"❌ خطأ: {e}")
@@ -157,11 +161,12 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         shutil.rmtree(file.parent, ignore_errors=True)
 
 
-# ---------- Webhook ----------
+# ================== Webhook Server ==================
 def main():
     nest_asyncio.apply()
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CallbackQueryHandler(callback))
@@ -188,6 +193,7 @@ def main():
             int(os.getenv("PORT", "10000"))
         )
         await site.start()
+
         print("🚀 Webhook Bot Running")
         while True:
             await asyncio.sleep(3600)
